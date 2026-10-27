@@ -21,6 +21,13 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
   missing native binding, then `npm install-scripts approve unrs-resolver`
   and reinstall.
 - Next up: Session 2 (see Roadmap).
+- Open decision, ask at the start of session 2: should Claude be able to
+  add/edit projects too? Options discussed 27 Oct:
+  1. Supabase's official MCP server in Claude Code, scoped to this project and
+     database tools (~10 min, no app code; Claude Code only). Recommended start.
+  2. An MCP endpoint in the app itself, protected by a token, added as a claude.ai
+     custom connector (works from chat/phone, validated by the app; ~1 session).
+  3. A local script using `.env.local` (not recommended; option 1 is simpler).
 - Decision: login is HTTP Basic Auth in `src/proxy.ts` instead of Supabase
   Auth/Clerk, a deliberate shortcut for a single-user v0. Revisit only if a
   second user or per-user data is ever needed.
