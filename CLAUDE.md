@@ -7,21 +7,20 @@ every side project. Single user (me). Built in ~4-hour sessions, 3 days a week;
 the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 (also in the claude.ai project "Dashboard & Side Projects").
 
-## Current status (updated 27 Oct 2026, end of session 1 build)
-- Code for session 1 is written and was tested against a mock of Supabase's
-  API (add, edit, "Worked today", login gate). **Not yet run against a real
-  Supabase database.**
-- Done on this machine: Node upgraded from 18 to current LTS (Next 16 needs
-  20.9+), `npm install` run. npm skipped `unrs-resolver`'s install script (a
-  linter dependency); fine unless `npm run lint` errors about a missing native
-  binding, then `npm install-scripts approve unrs-resolver` and reinstall.
-- Next steps, in order:
-  1. ~~Create the Supabase project, run `supabase/schema.sql` in its SQL editor.~~ Done.
-  2. ~~`copy .env.example .env.local` and fill in the values.~~ Done.
-  3. ~~`npm run dev`, log in, check the list/add/edit flows against real data.~~
-     Done 27 Oct: list, add, edit and "Worked today" all work on real data.
-  4. ~~`git init` + first commit.~~ Done 27 Oct.
-  5. Push to GitHub, deploy on Vercel with the same env vars.
+## Current status (updated 27 Oct 2026, session 1 complete)
+- **Session 1 is done and live.** Checked by hand on real Supabase data, both
+  locally and on the Vercel deploy: login gate, list, add, edit, "Worked today".
+- Hosting: GitHub `JasonDButt/dashboard` (`main`), Vercel auto-deploys every
+  push to `main`. Env vars live in `.env.local` locally and in Vercel project
+  settings; changing one in Vercel needs a redeploy to take effect.
+- Supabase free plan pauses after ~1 week idle; if the live site can't load
+  projects after a break, restore the project in the Supabase dashboard.
+- This machine: Node on current LTS (Next 16 needs 20.9+), Git for Windows
+  updated so pushes sign in via browser. npm skipped `unrs-resolver`'s install
+  script (a linter dependency); fine unless `npm run lint` errors about a
+  missing native binding, then `npm install-scripts approve unrs-resolver`
+  and reinstall.
+- Next up: Session 2 (see Roadmap).
 - Decision: login is HTTP Basic Auth in `src/proxy.ts` instead of Supabase
   Auth/Clerk, a deliberate shortcut for a single-user v0. Revisit only if a
   second user or per-user data is ever needed.
@@ -74,7 +73,6 @@ New tables also need an explicit `grant ... to service_role` (Supabase no
 longer auto-grants), or the app gets "permission denied for table".
 
 ## Roadmap
-- [ ] Session 1: list / add / edit projects, login gate, deploy (code done;
-      real-DB check and deploy pending, see Current status)
+- [x] Session 1: list / add / edit projects, login gate, deploy (live 27 Oct 2026)
 - [ ] Session 2: weekly view (3 session slots/week) + idea backlog
 - [ ] Later: time log against the 12 hrs/week target
