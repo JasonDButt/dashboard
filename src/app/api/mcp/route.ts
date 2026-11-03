@@ -144,8 +144,10 @@ async function handler(request: Request): Promise<Response> {
   if (!expected) {
     return new Response("DASHBOARD_MCP_TOKEN is not set.", { status: 503 });
   }
+  // "Bearer" is case-insensitive per the HTTP spec; a bare token is accepted
+  // too, since connector UIs differ in what they expect you to type.
   const header = request.headers.get("authorization") ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  const token = header.replace(/^bearer\s+/i, "").trim();
   if (!token || !safeEqual(token, expected)) {
     return new Response("Unauthorized", {
       status: 401,
