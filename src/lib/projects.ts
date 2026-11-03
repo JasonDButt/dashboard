@@ -53,37 +53,59 @@ export async function getProject(id: string): Promise<Project | null> {
   return data as Project | null;
 }
 
-export async function insertProject(input: ProjectInput): Promise<void> {
-  const { error } = await db().from("projects").insert(input);
+export async function insertProject(input: ProjectInput): Promise<Project> {
+  const { data, error } = await db()
+    .from("projects")
+    .insert(input)
+    .select()
+    .single();
   if (error) throw new Error(`Couldn't save project: ${error.message}`);
+  return data as Project;
 }
 
 export async function updateProject(
   id: string,
   input: Partial<ProjectInput>,
-): Promise<void> {
-  const { error } = await db().from("projects").update(input).eq("id", id);
+): Promise<Project> {
+  const { data, error } = await db()
+    .from("projects")
+    .update(input)
+    .eq("id", id)
+    .select()
+    .maybeSingle();
   if (error) throw new Error(`Couldn't update project: ${error.message}`);
+  if (!data) throw new Error(`No project with id ${id}.`);
+  return data as Project;
 }
 
 /** Turns submitted form fields into a validated ProjectInput. */
 export function parseProjectForm(form: FormData): ProjectInput {
-  const name = String(form.get("name") ?? "").trim();
+  return validateProject(Object.fromEntries(form));
+}
+
+/**
+ * The one set of rules for a project, shared by the web forms and the MCP
+ * endpoint (src/app/api/mcp/route.ts). Missing/empty fields get defaults.
+ */
+export function validateProject(raw: Record<string, unknown>): ProjectInput {
+  const text = (key: string) => String(raw[key] ?? "").trim();
+
+  const name = text("name");
   if (!name) throw new Error("Name is required.");
 
-  const status = String(form.get("status") ?? "idea") as Status;
+  const status = (text("status") || "idea") as Status;
   if (!STATUSES.includes(status)) throw new Error(`Unknown status: ${status}`);
 
-  const date = String(form.get("last_worked_on") ?? "").trim();
+  const date = text("last_worked_on");
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    throw new Error("Last worked on must be a date.");
+    throw new Error("Last worked on must be a date (YYYY-MM-DD).");
   }
 
   return {
     name,
     status,
-    stack: String(form.get("stack") ?? "").trim(),
-    next_task: String(form.get("next_task") ?? "").trim(),
+    stack: text("stack"),
+    next_task: text("next_task"),
     last_worked_on: date || null,
   };
 }

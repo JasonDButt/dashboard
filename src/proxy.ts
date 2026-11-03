@@ -1,10 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { safeEqual } from "@/lib/auth";
 
 // Single-login gate for v0: HTTP Basic Auth against two env vars.
 // The browser shows its own username/password prompt and remembers it.
 // Replace with Supabase Auth if this ever needs more than one user.
 
 export function proxy(request: NextRequest) {
+  // The MCP endpoint checks its own bearer token (src/app/api/mcp/route.ts):
+  // Claude can't answer a Basic Auth prompt. Exact match, so nothing else
+  // slips past the gate.
+  if (request.nextUrl.pathname === "/api/mcp") return NextResponse.next();
+
   const expectedUser = process.env.DASHBOARD_USER || "me";
   const expectedPassword = process.env.DASHBOARD_PASSWORD;
 
@@ -34,15 +40,6 @@ export function proxy(request: NextRequest) {
     status: 401,
     headers: { "WWW-Authenticate": 'Basic realm="dashboard", charset="UTF-8"' },
   });
-}
-
-// Constant-time-ish comparison so response timing doesn't leak the password.
-function safeEqual(a: string, b: string): boolean {
-  let diff = a.length ^ b.length;
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  }
-  return diff === 0;
 }
 
 export const config = {

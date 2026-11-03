@@ -20,14 +20,14 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
   script (a linter dependency); fine unless `npm run lint` errors about a
   missing native binding, then `npm install-scripts approve unrs-resolver`
   and reinstall.
-- Next up: Session 2 (see Roadmap).
-- Open decision, ask at the start of session 2: should Claude be able to
-  add/edit projects too? Options discussed 27 Oct:
-  1. Supabase's official MCP server in Claude Code, scoped to this project and
-     database tools (~10 min, no app code; Claude Code only). Recommended start.
-  2. An MCP endpoint in the app itself, protected by a token, added as a claude.ai
-     custom connector (works from chat/phone, validated by the app; ~1 session).
-  3. A local script using `.env.local` (not recommended; option 1 is simpler).
+- **Session 2 (3 Nov): MCP endpoint so Claude can read/edit projects.** Built
+  and tested locally (auth, all 5 tools, validation errors). Still to do:
+  add `DASHBOARD_MCP_TOKEN` to Vercel, push, add the claude.ai custom
+  connector, check it from chat. Weekly view + backlog moved to session 3.
+- Decision (3 Nov): Claude edits go through our own MCP endpoint, not
+  Supabase's MCP server: works from claude.ai chat/phone, can only do what
+  the tools allow (no delete), and reuses the web form validation. Auth is a
+  fixed bearer token, which claude.ai connectors send via "Request headers".
 - Decision: login is HTTP Basic Auth in `src/proxy.ts` instead of Supabase
   Auth/Clerk, a deliberate shortcut for a single-user v0. Revisit only if a
   second user or per-user data is ever needed.
@@ -52,12 +52,17 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 - Fonts from the `geist` package (local files, no Google Fonts fetch at build)
 
 ## How the code is laid out
-- `src/proxy.ts` — the login gate (HTTP Basic Auth on every route). In Next 16,
-  `middleware.ts` was renamed to `proxy.ts`.
+- `src/proxy.ts` — the login gate (HTTP Basic Auth on every route except
+  `/api/mcp`). In Next 16, `middleware.ts` was renamed to `proxy.ts`.
+- `src/app/api/mcp/route.ts` — MCP endpoint (`mcp-handler` 2.x, MCP SDK v2,
+  zod 4). Checks `Authorization: Bearer $DASHBOARD_MCP_TOKEN` itself. Tools:
+  list_projects, get_project, add_project, update_project, mark_worked_today.
+  When the app gains a feature Claude should use (e.g. backlog), add a tool.
 - `src/lib/supabase.ts` — server-only client using `SUPABASE_SECRET_KEY`.
   Never import it (or anything that imports it) from a `"use client"` file.
-- `src/lib/projects.ts` — all reads/writes for the `projects` table, plus form
-  parsing/validation. Reads call `await connection()` so they run per request.
+- `src/lib/projects.ts` — all reads/writes for the `projects` table, plus
+  `validateProject`, the one set of field rules used by both the forms and
+  the MCP tools. Reads call `await connection()` so they run per request.
 - `src/app/actions.ts` — server actions (create, save, mark worked today).
 - `src/app/page.tsx` — project list. `src/app/projects/new`, `src/app/projects/[id]`
   — add and edit forms (shared `src/components/ProjectForm.tsx`).
@@ -81,5 +86,7 @@ longer auto-grants), or the app gets "permission denied for table".
 
 ## Roadmap
 - [x] Session 1: list / add / edit projects, login gate, deploy (live 27 Oct 2026)
-- [ ] Session 2: weekly view (3 session slots/week) + idea backlog
+- [ ] Session 2: MCP endpoint so Claude can add/edit projects (built 3 Nov;
+      deploy + connector pending)
+- [ ] Session 3: weekly view (3 session slots/week) + idea backlog
 - [ ] Later: time log against the 12 hrs/week target
