@@ -9,7 +9,18 @@ export function proxy(request: NextRequest) {
   // The MCP endpoint checks its own bearer token (src/app/api/mcp/route.ts):
   // Claude can't answer a Basic Auth prompt. Exact match, so nothing else
   // slips past the gate.
-  if (request.nextUrl.pathname === "/api/mcp") return NextResponse.next();
+  const { pathname } = request.nextUrl;
+  if (pathname === "/api/mcp") return NextResponse.next();
+
+  // MCP clients look here for OAuth settings. We don't use OAuth, and no such
+  // pages exist, so let these fall through to a plain 404 ("no OAuth here")
+  // rather than a Basic Auth 401, which clients read as a broken sign-in.
+  if (
+    pathname.startsWith("/.well-known/") ||
+    pathname.startsWith("/api/mcp/.well-known/")
+  ) {
+    return NextResponse.next();
+  }
 
   const expectedUser = process.env.DASHBOARD_USER || "me";
   const expectedPassword = process.env.DASHBOARD_PASSWORD;

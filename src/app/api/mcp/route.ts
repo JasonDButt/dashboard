@@ -149,6 +149,16 @@ async function handler(request: Request): Promise<Response> {
   const header = request.headers.get("authorization") ?? "";
   const token = header.replace(/^bearer\s+/i, "").trim();
   if (!token || !safeEqual(token, expected)) {
+    // Shows up in Vercel's logs to diagnose connector setup. Never log the
+    // token itself, only its shape.
+    console.warn("[mcp] refused", {
+      method: request.method,
+      hasHeader: header !== "",
+      bearerPrefix: /^bearer\s+/i.test(header),
+      tokenLength: token.length,
+      expectedLength: expected.length,
+      userAgent: request.headers.get("user-agent"),
+    });
     return new Response("Unauthorized", {
       status: 401,
       headers: { "WWW-Authenticate": 'Bearer realm="dashboard-mcp"' },
