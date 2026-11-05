@@ -31,6 +31,8 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 - Connector setup that works: URL `<site>/api/mcp`, authentication "No sign-in",
   request header `authorization`, value = the bare token from `.env.local`.
   Headers can't be edited after adding: remove the connector and add it again.
+  After adding tools, claude.ai keeps the old list until you Disconnect then
+  Connect the connector under Customize > Connectors (no need to re-add it).
   If it won't connect, Vercel's logs show `[mcp] refused` with the token's
   shape; `tokenLength: 70` meant "Bearer" was stuck to the token, no space.
 - Decision: login is HTTP Basic Auth in `src/proxy.ts` instead of Supabase
