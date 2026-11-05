@@ -6,8 +6,6 @@ const STYLES: Record<Status, string> = {
   paused: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300",
   idea: "bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-300",
   done: "bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300",
-  dropped:
-    "bg-stone-100 text-stone-500 line-through dark:bg-stone-900 dark:text-stone-500",
 };
 
 export function StatusBadge({ status }: { status: Status }) {

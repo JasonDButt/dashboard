@@ -11,7 +11,15 @@ const STALE_AFTER_DAYS = 7;
 export default function HomePage() {
   return (
     <>
-      <h1 className="mb-4 text-xl font-semibold tracking-tight">Projects</h1>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h1 className="text-xl font-semibold tracking-tight">Projects</h1>
+        <Link
+          href="/archive"
+          className="rounded border border-stone-300 px-2 py-0.5 text-xs hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
+        >
+          Archive
+        </Link>
+      </div>
       <Suspense
         fallback={<p className="text-sm text-stone-500">Loading projects…</p>}
       >

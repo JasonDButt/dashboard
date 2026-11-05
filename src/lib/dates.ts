@@ -4,9 +4,14 @@ export const TIME_ZONE = process.env.DASHBOARD_TIME_ZONE || "Australia/Sydney";
 
 /** Today's date as YYYY-MM-DD in TIME_ZONE. */
 export function todayISO(): string {
+  return dateInZone(new Date());
+}
+
+/** A moment in time as YYYY-MM-DD in TIME_ZONE. */
+export function dateInZone(moment: Date | string): string {
   // en-CA formats dates as YYYY-MM-DD.
   return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(
-    new Date(),
+    new Date(moment),
   );
 }
 

@@ -5,13 +5,24 @@ create table if not exists public.projects (
   id             uuid primary key default gen_random_uuid(),
   name           text not null check (length(trim(name)) > 0),
   status         text not null default 'idea'
-                 check (status in ('idea', 'active', 'paused', 'done', 'dropped')),
+                 check (status in ('idea', 'active', 'paused', 'done')),
   stack          text not null default '',
   next_task      text not null default '',
   last_worked_on date,
+  archived_at    timestamptz,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
+
+-- Upgrade for databases created before archiving existed: add archived_at and
+-- retire the 'dropped' status (any dropped project becomes archived + paused).
+alter table public.projects add column if not exists archived_at timestamptz;
+update public.projects
+  set archived_at = coalesce(archived_at, now()), status = 'paused'
+  where status = 'dropped';
+alter table public.projects drop constraint if exists projects_status_check;
+alter table public.projects add constraint projects_status_check
+  check (status in ('idea', 'active', 'paused', 'done'));
 
 -- Keep updated_at honest on every edit.
 create or replace function public.set_updated_at()

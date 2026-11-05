@@ -7,7 +7,9 @@ import {
   STATUSES,
   getProject,
   insertProject,
+  listArchivedProjects,
   listProjects,
+  setArchived,
   updateProject,
   validateProject,
   type Project,
@@ -20,7 +22,8 @@ import {
 // "Authorization: Bearer <token>". src/proxy.ts lets this one path skip the
 // Basic Auth gate, so this check is the only thing protecting it.
 //
-// There is deliberately no delete tool, matching the web app.
+// There is deliberately no delete tool: deleting is only for the human, on the
+// web pages behind the login. Claude can archive and restore instead.
 
 const id = z.uuid().describe("The project's id, from list_projects.");
 const status = z.enum(STATUSES);
@@ -36,7 +39,7 @@ const mcp = createMcpHandler(
       {
         title: "List projects",
         description:
-          "List every project on the dashboard (active first, done/dropped last) with status, stack, next task and when it was last worked on. Call this first to get project ids.",
+          "List every project on the dashboard except archived ones (active first, done last) with status, stack, next task and when it was last worked on. Call this first to get project ids.",
         annotations: { readOnlyHint: true },
       },
       () =>
@@ -45,6 +48,55 @@ const mcp = createMcpHandler(
           const projects = await listProjects();
           return { today, projects: projects.map((p) => summarise(p, today)) };
         }),
+    );
+
+    server.registerTool(
+      "list_archived_projects",
+      {
+        title: "List archived projects",
+        description:
+          "List archived projects, most recently archived first. Use this to find the id of a project to restore.",
+        annotations: { readOnlyHint: true },
+      },
+      () =>
+        run(async () => {
+          const today = todayISO();
+          const projects = await listArchivedProjects();
+          return projects.map((p) => summarise(p, today));
+        }),
+    );
+
+    server.registerTool(
+      "archive_project",
+      {
+        title: "Archive project",
+        description:
+          "Move a project off the main list and into the archive. Its status and details are kept, and restore_project brings it back.",
+        inputSchema: z.object({ id }),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
+      ({ id }) =>
+        run(async () => summarise(await setArchived(id, true), todayISO())),
+    );
+
+    server.registerTool(
+      "restore_project",
+      {
+        title: "Restore project",
+        description: "Move an archived project back onto the main list.",
+        inputSchema: z.object({ id }),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
+      ({ id }) =>
+        run(async () => summarise(await setArchived(id, false), todayISO())),
     );
 
     server.registerTool(

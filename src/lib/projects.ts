@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { db } from "./supabase";
 
-export const STATUSES = ["idea", "active", "paused", "done", "dropped"] as const;
+export const STATUSES = ["idea", "active", "paused", "done"] as const;
 export type Status = (typeof STATUSES)[number];
 
 export type Project = {
@@ -11,6 +11,7 @@ export type Project = {
   stack: string;
   next_task: string;
   last_worked_on: string | null; // YYYY-MM-DD
+  archived_at: string | null; // set = archived, kept off the main list
   created_at: string;
   updated_at: string;
 };
@@ -20,26 +21,39 @@ export type ProjectInput = Pick<
   "name" | "status" | "stack" | "next_task" | "last_worked_on"
 >;
 
-// Active work first, finished/dropped last.
+// Active work first, finished last.
 const STATUS_ORDER: Record<Status, number> = {
   active: 0,
   paused: 1,
   idea: 2,
   done: 3,
-  dropped: 4,
 };
 
+/** Every project except archived ones. */
 export async function listProjects(): Promise<Project[]> {
   await connection(); // always read fresh at request time, never at build
   const { data, error } = await db()
     .from("projects")
     .select("*")
+    .is("archived_at", null)
     .order("last_worked_on", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
   if (error) throw new Error(`Couldn't load projects: ${error.message}`);
   return (data as Project[]).sort(
     (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status],
   );
+}
+
+/** Archived projects, most recently archived first. */
+export async function listArchivedProjects(): Promise<Project[]> {
+  await connection();
+  const { data, error } = await db()
+    .from("projects")
+    .select("*")
+    .not("archived_at", "is", null)
+    .order("archived_at", { ascending: false });
+  if (error) throw new Error(`Couldn't load archive: ${error.message}`);
+  return data as Project[];
 }
 
 export async function getProject(id: string): Promise<Project | null> {
@@ -65,7 +79,7 @@ export async function insertProject(input: ProjectInput): Promise<Project> {
 
 export async function updateProject(
   id: string,
-  input: Partial<ProjectInput>,
+  input: Partial<ProjectInput & Pick<Project, "archived_at">>,
 ): Promise<Project> {
   const { data, error } = await db()
     .from("projects")
@@ -74,6 +88,29 @@ export async function updateProject(
     .select()
     .maybeSingle();
   if (error) throw new Error(`Couldn't update project: ${error.message}`);
+  if (!data) throw new Error(`No project with id ${id}.`);
+  return data as Project;
+}
+
+/** Archives or restores a project. Its status is left as it was. */
+export function setArchived(id: string, archived: boolean): Promise<Project> {
+  return updateProject(id, {
+    archived_at: archived ? new Date().toISOString() : null,
+  });
+}
+
+/**
+ * Permanently deletes a project and returns what was deleted. Only the web
+ * pages (behind the login) call this; the MCP endpoint deliberately doesn't.
+ */
+export async function removeProject(id: string): Promise<Project> {
+  const { data, error } = await db()
+    .from("projects")
+    .delete()
+    .eq("id", id)
+    .select()
+    .maybeSingle();
+  if (error) throw new Error(`Couldn't delete project: ${error.message}`);
   if (!data) throw new Error(`No project with id ${id}.`);
   return data as Project;
 }

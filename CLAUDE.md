@@ -62,16 +62,20 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
   OAuth here"). In Next 16, `middleware.ts` was renamed to `proxy.ts`.
 - `src/app/api/mcp/route.ts` — MCP endpoint (`mcp-handler` 2.x, MCP SDK v2,
   zod 4). Checks `Authorization: Bearer $DASHBOARD_MCP_TOKEN` itself. Tools:
-  list_projects, get_project, add_project, update_project, mark_worked_today.
+  list_projects, list_archived_projects, get_project, add_project,
+  update_project, mark_worked_today, archive_project, restore_project.
+  **No delete tool, on purpose:** deleting is for the human, on the web pages.
   When the app gains a feature Claude should use (e.g. backlog), add a tool.
 - `src/lib/supabase.ts` — server-only client using `SUPABASE_SECRET_KEY`.
   Never import it (or anything that imports it) from a `"use client"` file.
 - `src/lib/projects.ts` — all reads/writes for the `projects` table, plus
   `validateProject`, the one set of field rules used by both the forms and
   the MCP tools. Reads call `await connection()` so they run per request.
-- `src/app/actions.ts` — server actions (create, save, mark worked today).
-- `src/app/page.tsx` — project list. `src/app/projects/new`, `src/app/projects/[id]`
-  — add and edit forms (shared `src/components/ProjectForm.tsx`).
+- `src/app/actions.ts` — server actions (create, save, mark worked today,
+  archive, restore, delete).
+- `src/app/page.tsx` — project list. `src/app/archive` — archived projects.
+  `src/app/projects/new`, `src/app/projects/[id]` — add and edit forms (shared
+  `src/components/ProjectForm.tsx`); the edit page also has archive and delete.
 - `supabase/schema.sql` — the schema; re-runnable. Schema changes go here first,
   then get pasted into the Supabase SQL editor.
 
@@ -84,8 +88,10 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
   knows their `PageProps` type.
 
 ## Data model
-`projects`: `id`, `name`, `status` (idea | active | paused | done | dropped),
-`stack`, `next_task`, `last_worked_on` (date), `created_at`, `updated_at`.
+`projects`: `id`, `name`, `status` (idea | active | paused | done),
+`stack`, `next_task`, `last_worked_on` (date), `archived_at`, `created_at`,
+`updated_at`. Archived = `archived_at` is set: off the main list, on `/archive`,
+status kept for when it's restored.
 RLS is enabled with no policies, so only the secret key can touch it.
 New tables also need an explicit `grant ... to service_role` (Supabase no
 longer auto-grants), or the app gets "permission denied for table".
