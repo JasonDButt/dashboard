@@ -3,6 +3,8 @@ import Link from "next/link";
 import { listProjects, type Project } from "@/lib/projects";
 import { daysSince, describeLastWorked, todayISO } from "@/lib/dates";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ThisWeek } from "@/components/ThisWeek";
+import { Backlog } from "@/components/Backlog";
 import { markWorkedToday } from "./actions";
 
 // An active project untouched for longer than this gets flagged.
@@ -11,8 +13,15 @@ const STALE_AFTER_DAYS = 7;
 export default function HomePage() {
   return (
     <>
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold tracking-tight">Projects</h1>
+      <h1 className="sr-only">Dashboard</h1>
+      <Suspense
+        fallback={<p className="mb-8 text-sm text-stone-500">Loading this week…</p>}
+      >
+        <ThisWeek />
+      </Suspense>
+
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold tracking-tight">Projects</h2>
         <Link
           href="/archive"
           className="rounded border border-stone-300 px-2 py-0.5 text-xs hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
@@ -24,6 +33,12 @@ export default function HomePage() {
         fallback={<p className="text-sm text-stone-500">Loading projects…</p>}
       >
         <ProjectList />
+      </Suspense>
+
+      <Suspense
+        fallback={<p className="mt-8 text-sm text-stone-500">Loading ideas…</p>}
+      >
+        <Backlog />
       </Suspense>
     </>
   );

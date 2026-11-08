@@ -7,7 +7,7 @@ every side project. Single user (me). Built in ~4-hour sessions, 3 days a week;
 the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 (also in the claude.ai project "Dashboard & Side Projects").
 
-## Current status (updated 5 Nov 2026, session 2 complete)
+## Current status (updated 8 Nov 2026, session 3 in progress)
 - **Session 1 is done and live.** Checked by hand on real Supabase data, both
   locally and on the Vercel deploy: login gate, list, add, edit, "Worked today".
 - Hosting: GitHub `JasonDButt/dashboard` (`main`), Vercel auto-deploys every
@@ -23,7 +23,13 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 - **Session 2 is done and live: Claude can read/edit projects over MCP.** The
   claude.ai custom connector works from project chat (reads and a change
   confirmed on the live site, 5 Nov).
-- Next up: Session 3, weekly view + idea backlog (see Roadmap).
+- Also live (5 Nov): archive (`archived_at`, `/archive` page) replaced the
+  `dropped` status; delete is web-only, behind the login.
+- **Session 3 (8 Nov): weekly view + idea backlog.** Built: 3 flexible slots
+  per week on the home page (project + goal + done/note; done also marks the
+  project worked), `/weeks` history, backlog with promote-to-project, and MCP
+  tools for both. Lint/build pass. Still to do: run `schema.sql` in Supabase,
+  check by hand, deploy, Disconnect/Connect the connector for the new tools.
 - Decision (3 Nov): Claude edits go through our own MCP endpoint, not
   Supabase's MCP server: works from claude.ai chat/phone, can only do what
   the tools allow (no delete), and reuses the web form validation. Auth is a
@@ -64,18 +70,24 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
   OAuth here"). In Next 16, `middleware.ts` was renamed to `proxy.ts`.
 - `src/app/api/mcp/route.ts` — MCP endpoint (`mcp-handler` 2.x, MCP SDK v2,
   zod 4). Checks `Authorization: Bearer $DASHBOARD_MCP_TOKEN` itself. Tools:
-  list_projects, list_archived_projects, get_project, add_project,
-  update_project, mark_worked_today, archive_project, restore_project.
-  **No delete tool, on purpose:** deleting is for the human, on the web pages.
-  When the app gains a feature Claude should use (e.g. backlog), add a tool.
+  projects (list_projects, list_archived_projects, get_project, add_project,
+  update_project, mark_worked_today, archive_project, restore_project), week
+  (get_week, plan_session, complete_session), ideas (list_ideas, add_idea,
+  update_idea, promote_idea).
+  **No delete tools, on purpose:** deleting is for the human, on the web pages.
+  When the app gains a feature Claude should use, add a tool.
 - `src/lib/supabase.ts` — server-only client using `SUPABASE_SECRET_KEY`.
   Never import it (or anything that imports it) from a `"use client"` file.
 - `src/lib/projects.ts` — all reads/writes for the `projects` table, plus
   `validateProject`, the one set of field rules used by both the forms and
   the MCP tools. Reads call `await connection()` so they run per request.
-- `src/app/actions.ts` — server actions (create, save, mark worked today,
-  archive, restore, delete).
-- `src/app/page.tsx` — project list. `src/app/archive` — archived projects.
+- `src/lib/sessions.ts` — weekly slots (`work_sessions`); `src/lib/ideas.ts` —
+  the backlog (`ideas`, incl. promote to project). `src/lib/dates.ts` —
+  everything about "today" and weeks (Monday start, in DASHBOARD_TIME_ZONE).
+- `src/app/actions.ts` — server actions for projects, week slots and ideas.
+- `src/app/page.tsx` — home: this week (`components/ThisWeek.tsx`), projects,
+  backlog (`components/Backlog.tsx`). `src/app/weeks` — past weeks.
+  `src/app/archive` — archived projects.
   `src/app/projects/new`, `src/app/projects/[id]` — add and edit forms (shared
   `src/components/ProjectForm.tsx`); the edit page also has archive and delete.
 - `supabase/schema.sql` — the schema; re-runnable. Schema changes go here first,
@@ -84,6 +96,8 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 ## Next.js 16 gotchas already hit
 - With Cache Components, any uncached data read (Supabase fetch, `params`,
   `cookies()`) must sit inside `<Suspense>` or the build fails.
+- Anything using "today" (`todayISO()`, `new Date()`) must come after
+  `await connection()` too, or the build fails trying to prerender it.
 - `params` is a Promise: `const { id } = await params`. Type pages with the
   global `PageProps<"/route/[param]">` helper.
 - New routes need `npx next typegen` (or a `next dev`/`build`) before `tsc`
@@ -94,7 +108,11 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 `stack`, `next_task`, `last_worked_on` (date), `archived_at`, `created_at`,
 `updated_at`. Archived = `archived_at` is set: off the main list, on `/archive`,
 status kept for when it's restored.
-RLS is enabled with no policies, so only the secret key can touch it.
+`work_sessions`: `week_start` (Monday), `slot` (1-3), `project_id` (null if the
+project is deleted), `goal`, `done_on`, `note`; unique per (week_start, slot),
+row created when a slot is first used. `ideas`: `title`, `notes`.
+RLS is enabled with no policies on every table, so only the secret key can
+touch them.
 New tables also need an explicit `grant ... to service_role` (Supabase no
 longer auto-grants), or the app gets "permission denied for table".
 

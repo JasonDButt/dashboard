@@ -2,7 +2,22 @@ import { createMcpHandler } from "mcp-handler";
 import { connection } from "next/server";
 import { z } from "zod";
 import { safeEqual } from "@/lib/auth";
-import { describeLastWorked, todayISO } from "@/lib/dates";
+import { describeLastWorked, todayISO, weekStartOf } from "@/lib/dates";
+import {
+  SLOTS,
+  completeSession,
+  getWeek,
+  planSession,
+  type WorkSession,
+} from "@/lib/sessions";
+import {
+  getIdea,
+  insertIdea,
+  listIdeas,
+  promoteIdea,
+  updateIdea,
+  validateIdea,
+} from "@/lib/ideas";
 import {
   STATUSES,
   getProject,
@@ -16,7 +31,8 @@ import {
 } from "@/lib/projects";
 
 // MCP endpoint: lets Claude (claude.ai connector, Claude Code, phone app)
-// read and edit projects through the same code as the web forms.
+// read and edit projects, the weekly sessions and the idea backlog through
+// the same code as the web forms.
 //
 // Auth: a fixed bearer token (DASHBOARD_MCP_TOKEN), sent by the client as
 // "Authorization: Bearer <token>". src/proxy.ts lets this one path skip the
@@ -26,11 +42,16 @@ import {
 // web pages behind the login. Claude can archive and restore instead.
 
 const id = z.uuid().describe("The project's id, from list_projects.");
+const ideaId = z.uuid().describe("The idea's id, from list_ideas.");
 const status = z.enum(STATUSES);
 const date = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .describe("A date as YYYY-MM-DD.");
+const slot = z.number().int().min(1).max(3).describe("Session slot, 1-3.");
+const weekOf = date
+  .optional()
+  .describe("Any date in the week (YYYY-MM-DD). Defaults to this week.");
 
 const mcp = createMcpHandler(
   (server) => {
@@ -97,6 +118,135 @@ const mcp = createMcpHandler(
       },
       ({ id }) =>
         run(async () => summarise(await setArchived(id, false), todayISO())),
+    );
+
+    // --- Weekly view: 3 flexible session slots per week ---
+
+    server.registerTool(
+      "get_week",
+      {
+        title: "Get week",
+        description:
+          "Show a week's 3 session slots (project, goal, done date, note). Defaults to this week; pass any date to see the week containing it. Weeks start on Monday.",
+        inputSchema: z.object({ week_of: weekOf }),
+        annotations: { readOnlyHint: true },
+      },
+      ({ week_of }) =>
+        run(async () => {
+          const weekStart = resolveWeek(week_of);
+          const slots = await getWeek(weekStart);
+          return {
+            today: todayISO(),
+            week_start: weekStart,
+            slots: SLOTS.map((slot, i) => describeSlot(slot, slots[i])),
+          };
+        }),
+    );
+
+    server.registerTool(
+      "plan_session",
+      {
+        title: "Plan session",
+        description:
+          "Set which project a session slot is for and/or its goal. Only the fields you pass are changed; pass project_id: null to unset the project.",
+        inputSchema: z.object({
+          slot,
+          project_id: id.nullable().optional(),
+          goal: z.string().optional(),
+          week_of: weekOf,
+        }),
+        annotations: { readOnlyHint: false, destructiveHint: false },
+      },
+      ({ slot, project_id, goal, week_of }) =>
+        run(async () =>
+          describeSlot(
+            slot,
+            await planSession(resolveWeek(week_of), slot, { project_id, goal }),
+          ),
+        ),
+    );
+
+    server.registerTool(
+      "complete_session",
+      {
+        title: "Complete session",
+        description:
+          "Tick a session slot done (today by default) with an optional note. Also marks its project as worked on that day.",
+        inputSchema: z.object({
+          slot,
+          note: z.string().optional(),
+          done_on: date.optional(),
+          week_of: weekOf,
+        }),
+        annotations: { readOnlyHint: false, destructiveHint: false },
+      },
+      ({ slot, note, done_on, week_of }) =>
+        run(async () => {
+          const doneOn = done_on ?? todayISO();
+          return describeSlot(
+            slot,
+            await completeSession(resolveWeek(week_of ?? doneOn), slot, doneOn, note),
+          );
+        }),
+    );
+
+    // --- Idea backlog (no delete tool: deleting ideas is web-only too) ---
+
+    server.registerTool(
+      "list_ideas",
+      {
+        title: "List ideas",
+        description: "List the idea backlog, newest first.",
+        annotations: { readOnlyHint: true },
+      },
+      () => run(() => listIdeas()),
+    );
+
+    server.registerTool(
+      "add_idea",
+      {
+        title: "Add idea",
+        description: "Park a new idea in the backlog.",
+        inputSchema: z.object({
+          title: z.string().min(1),
+          notes: z.string().optional(),
+        }),
+        annotations: { readOnlyHint: false, destructiveHint: false },
+      },
+      (input) => run(async () => insertIdea(validateIdea(input))),
+    );
+
+    server.registerTool(
+      "update_idea",
+      {
+        title: "Update idea",
+        description: "Change an idea's title and/or notes.",
+        inputSchema: z.object({
+          id: ideaId,
+          title: z.string().min(1).optional(),
+          notes: z.string().optional(),
+        }),
+        annotations: { readOnlyHint: false, destructiveHint: false },
+      },
+      ({ id, ...changes }) =>
+        run(async () => {
+          const current = await getIdea(id);
+          if (!current) throw new Error(`No idea with id ${id}.`);
+          return updateIdea(id, validateIdea({ ...current, ...changes }));
+        }),
+    );
+
+    server.registerTool(
+      "promote_idea",
+      {
+        title: "Promote idea",
+        description:
+          "Turn a backlog idea into a project (status idea; its notes become the next task). The idea leaves the backlog.",
+        inputSchema: z.object({ id: ideaId }),
+        annotations: { readOnlyHint: false, destructiveHint: false },
+      },
+      ({ id }) =>
+        run(async () => summarise(await promoteIdea(id), todayISO())),
     );
 
     server.registerTool(
@@ -185,7 +335,7 @@ const mcp = createMcpHandler(
         }),
     );
   },
-  { serverInfo: { name: "project-dashboard", version: "0.1.0" } },
+  { serverInfo: { name: "project-dashboard", version: "0.2.0" } },
 );
 
 async function handler(request: Request): Promise<Response> {
@@ -225,6 +375,24 @@ export { handler as GET, handler as POST, handler as DELETE };
 /** Project as Claude sees it: the row plus a human "last worked" phrase. */
 function summarise(p: Project, today: string) {
   return { ...p, last_worked: describeLastWorked(p.last_worked_on, today) };
+}
+
+/** The Monday of the week containing `date` (default: today). */
+function resolveWeek(date?: string) {
+  return weekStartOf(date ?? todayISO());
+}
+
+/** A slot as Claude sees it, including empty ones. */
+function describeSlot(slot: number, s: WorkSession | null) {
+  if (!s) return { slot, empty: true };
+  return {
+    slot,
+    project_id: s.project_id,
+    project_name: s.project?.name ?? null,
+    goal: s.goal,
+    done_on: s.done_on,
+    note: s.note,
+  };
 }
 
 /** Runs a tool body; returns its result as JSON, or the error as a tool error. */

@@ -49,6 +49,48 @@ alter table public.projects enable row level security;
 grant select, insert, update, delete on public.projects to service_role;
 revoke all on public.projects from anon, authenticated;
 
+-- Weekly view: 3 flexible session slots per week. One row per (week, slot),
+-- created when a slot is first planned. week_start is that week's Monday.
+create table if not exists public.work_sessions (
+  id          uuid primary key default gen_random_uuid(),
+  week_start  date not null check (extract(isodow from week_start) = 1),
+  slot        smallint not null check (slot between 1 and 3),
+  project_id  uuid references public.projects (id) on delete set null,
+  goal        text not null default '',
+  done_on     date,
+  note        text not null default '',
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  unique (week_start, slot)
+);
+
+-- Idea backlog: somewhere to dump ideas before they become projects.
+create table if not exists public.ideas (
+  id          uuid primary key default gen_random_uuid(),
+  title       text not null check (length(trim(title)) > 0),
+  notes       text not null default '',
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+drop trigger if exists work_sessions_set_updated_at on public.work_sessions;
+create trigger work_sessions_set_updated_at
+  before update on public.work_sessions
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists ideas_set_updated_at on public.ideas;
+create trigger ideas_set_updated_at
+  before update on public.ideas
+  for each row execute function public.set_updated_at();
+
+-- Same lock-down as projects: RLS on, no policies, secret key only.
+alter table public.work_sessions enable row level security;
+alter table public.ideas enable row level security;
+grant select, insert, update, delete on public.work_sessions to service_role;
+grant select, insert, update, delete on public.ideas to service_role;
+revoke all on public.work_sessions from anon, authenticated;
+revoke all on public.ideas from anon, authenticated;
+
 -- Starter rows: the three tracks from the project plan.
 insert into public.projects (name, status, stack, next_task, last_worked_on)
 select * from (values

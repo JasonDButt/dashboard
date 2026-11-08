@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getProject } from "@/lib/projects";
-import { DeleteProjectButton } from "@/components/DeleteProjectButton";
+import { DeleteButton } from "@/components/DeleteButton";
 import { ProjectForm } from "@/components/ProjectForm";
 import {
   archiveProject,
@@ -54,7 +54,7 @@ async function EditForm({ params }: { params: Promise<{ id: string }> }) {
             {project.archived_at ? "Restore" : "Archive"}
           </button>
         </form>
-        <DeleteProjectButton
+        <DeleteButton
           action={deleteProject.bind(null, project.id)}
           name={project.name}
         />

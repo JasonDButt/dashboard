@@ -2,7 +2,7 @@
 
 // A client component only for the "are you sure?" prompt; the delete itself is
 // a server action, so it still runs behind the login gate.
-export function DeleteProjectButton({
+export function DeleteButton({
   action,
   name,
 }: {

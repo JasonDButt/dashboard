@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { listArchivedProjects } from "@/lib/projects";
 import { dateInZone, describeLastWorked, todayISO } from "@/lib/dates";
-import { DeleteProjectButton } from "@/components/DeleteProjectButton";
+import { DeleteButton } from "@/components/DeleteButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { deleteProject, restoreProject } from "@/app/actions";
 
@@ -58,7 +58,7 @@ async function ArchivedList() {
                   Restore
                 </button>
               </form>
-              <DeleteProjectButton
+              <DeleteButton
                 action={deleteProject.bind(null, p.id)}
                 name={p.name}
               />

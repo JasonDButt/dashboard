@@ -15,6 +15,23 @@ export function dateInZone(moment: Date | string): string {
   );
 }
 
+/** The Monday of the week containing a YYYY-MM-DD date, as YYYY-MM-DD. */
+export function weekStartOf(date: string): string {
+  // Plain calendar maths in UTC; the date is already in TIME_ZONE.
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
+/** A YYYY-MM-DD date as e.g. "9 Nov". */
+export function shortDate(date: string): string {
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T00:00:00Z`));
+}
+
 /** "today", "yesterday", "5 days ago", or "never". */
 export function describeLastWorked(date: string | null, today: string): string {
   if (!date) return "never";
