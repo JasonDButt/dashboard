@@ -5,9 +5,13 @@ import { safeEqual } from "@/lib/auth";
 import { describeLastWorked, todayISO, weekStartOf } from "@/lib/dates";
 import {
   SLOTS,
+  WEEKLY_HOURS_TARGET,
   completeSession,
   getWeek,
+  hoursByProject,
+  logHours,
   planSession,
+  totalHours,
   type WorkSession,
 } from "@/lib/sessions";
 import {
@@ -49,6 +53,7 @@ const date = z
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .describe("A date as YYYY-MM-DD.");
 const slot = z.number().int().min(1).max(3).describe("Session slot, 1-3.");
+const hours = z.number().min(0).max(24).describe("Hours spent, e.g. 3.5.");
 const weekOf = date
   .optional()
   .describe("Any date in the week (YYYY-MM-DD). Defaults to this week.");
@@ -60,14 +65,23 @@ const mcp = createMcpHandler(
       {
         title: "List projects",
         description:
-          "List every project on the dashboard except archived ones (active first, done last) with status, stack, next task and when it was last worked on. Call this first to get project ids.",
+          "List every project on the dashboard except archived ones (active first, done last) with status, stack, next task, when it was last worked on and total hours logged. Call this first to get project ids.",
         annotations: { readOnlyHint: true },
       },
       () =>
         run(async () => {
           const today = todayISO();
-          const projects = await listProjects();
-          return { today, projects: projects.map((p) => summarise(p, today)) };
+          const [projects, hours] = await Promise.all([
+            listProjects(),
+            hoursByProject(),
+          ]);
+          return {
+            today,
+            projects: projects.map((p) => ({
+              ...summarise(p, today),
+              total_hours: hours.get(p.id) ?? 0,
+            })),
+          };
         }),
     );
 
@@ -127,7 +141,7 @@ const mcp = createMcpHandler(
       {
         title: "Get week",
         description:
-          "Show a week's 3 session slots (project, goal, done date, note). Defaults to this week; pass any date to see the week containing it. Weeks start on Monday.",
+          "Show a week's 3 session slots (project, goal, done date, note, hours) and hours logged against the weekly target. Defaults to this week; pass any date to see the week containing it. Weeks start on Monday.",
         inputSchema: z.object({ week_of: weekOf }),
         annotations: { readOnlyHint: true },
       },
@@ -138,6 +152,8 @@ const mcp = createMcpHandler(
           return {
             today: todayISO(),
             week_start: weekStart,
+            hours_logged: totalHours(slots),
+            hours_target: WEEKLY_HOURS_TARGET,
             slots: SLOTS.map((slot, i) => describeSlot(slot, slots[i])),
           };
         }),
@@ -171,23 +187,53 @@ const mcp = createMcpHandler(
       {
         title: "Complete session",
         description:
-          "Tick a session slot done (today by default) with an optional note. Also marks its project as worked on that day.",
+          "Tick a session slot done (today by default) with an optional note and hours spent. Also marks its project as worked on that day. Just after midnight, pass done_on explicitly.",
         inputSchema: z.object({
           slot,
           note: z.string().optional(),
+          hours: hours.optional(),
           done_on: date.optional(),
           week_of: weekOf,
         }),
         annotations: { readOnlyHint: false, destructiveHint: false },
       },
-      ({ slot, note, done_on, week_of }) =>
+      ({ slot, note, hours, done_on, week_of }) =>
         run(async () => {
           const doneOn = done_on ?? todayISO();
           return describeSlot(
             slot,
-            await completeSession(resolveWeek(week_of ?? doneOn), slot, doneOn, note),
+            await completeSession(
+              resolveWeek(week_of ?? doneOn),
+              slot,
+              doneOn,
+              note,
+              hours,
+            ),
           );
         }),
+    );
+
+    server.registerTool(
+      "log_hours",
+      {
+        title: "Log hours",
+        description:
+          "Set the hours spent in a session slot (or null to clear them). Hours count toward the weekly target once the session is done.",
+        inputSchema: z.object({
+          slot,
+          hours: hours.nullable(),
+          week_of: weekOf,
+        }),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
+      ({ slot, hours, week_of }) =>
+        run(async () =>
+          describeSlot(slot, await logHours(resolveWeek(week_of), slot, hours)),
+        ),
     );
 
     // --- Idea backlog (no delete tool: deleting ideas is web-only too) ---
@@ -392,6 +438,7 @@ function describeSlot(slot: number, s: WorkSession | null) {
     goal: s.goal,
     done_on: s.done_on,
     note: s.note,
+    hours: s.hours === null ? null : Number(s.hours),
   };
 }
 

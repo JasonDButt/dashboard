@@ -12,6 +12,8 @@ import {
 import {
   clearSession as clearSlot,
   completeSession as completeSlot,
+  logHours,
+  parseHours,
   planSession as planSlot,
   reopenSession as reopenSlot,
 } from "@/lib/sessions";
@@ -80,7 +82,22 @@ export async function completeSession(
   slot: number,
   form: FormData,
 ) {
-  await completeSlot(weekStart, slot, todayISO(), String(form.get("note") ?? ""));
+  await completeSlot(
+    weekStart,
+    slot,
+    todayISO(),
+    String(form.get("note") ?? ""),
+    parseHours(form.get("hours")),
+  );
+  refreshWeek();
+}
+
+export async function logSessionHours(
+  weekStart: string,
+  slot: number,
+  form: FormData,
+) {
+  await logHours(weekStart, slot, parseHours(form.get("hours")));
   refreshWeek();
 }
 

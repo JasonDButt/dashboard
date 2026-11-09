@@ -1,14 +1,25 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { listProjects, type Project } from "@/lib/projects";
-import { getWeek, SLOTS, type WorkSession } from "@/lib/sessions";
+import {
+  formatHours,
+  getWeek,
+  SLOTS,
+  totalHours,
+  WEEKLY_HOURS_TARGET,
+  type WorkSession,
+} from "@/lib/sessions";
 import { shortDate, todayISO, weekStartOf } from "@/lib/dates";
 import {
   clearSession,
   completeSession,
+  logSessionHours,
   planSession,
   reopenSession,
 } from "@/app/actions";
+
+const hoursInput =
+  "w-16 rounded-md border border-stone-300 bg-white px-2 py-1 text-sm dark:border-stone-700 dark:bg-stone-900";
 
 const input =
   "w-full rounded-md border border-stone-300 bg-white px-2 py-1 text-sm dark:border-stone-700 dark:bg-stone-900";
@@ -26,10 +37,11 @@ export async function ThisWeek() {
     listProjects(),
   ]);
   const done = slots.filter((s) => s?.done_on).length;
+  const hours = totalHours(slots);
 
   return (
     <section className="mb-8">
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">
           This week{" "}
           <span className="text-sm font-normal text-stone-500">
@@ -40,6 +52,7 @@ export async function ThisWeek() {
           Past weeks
         </Link>
       </div>
+      <HoursBar hours={hours} target={WEEKLY_HOURS_TARGET} />
       <div className="grid gap-3 sm:grid-cols-3">
         {SLOTS.map((slot, i) => (
           <SlotCard
@@ -52,6 +65,32 @@ export async function ThisWeek() {
         ))}
       </div>
     </section>
+  );
+}
+
+/** "7.5 / 12 hrs" with a bar; turns green once the target is reached. */
+export function HoursBar({ hours, target }: { hours: number; target: number }) {
+  const pct = Math.min(100, Math.round((hours / target) * 100));
+  const reached = hours >= target;
+  return (
+    <div className="mb-3 flex items-center gap-3 text-sm">
+      <div
+        className="h-2 flex-1 overflow-hidden rounded-full bg-stone-200 dark:bg-stone-800"
+        role="progressbar"
+        aria-valuenow={hours}
+        aria-valuemin={0}
+        aria-valuemax={target}
+        aria-label="Hours this week"
+      >
+        <div
+          className={`h-full rounded-full ${reached ? "bg-emerald-600" : "bg-stone-500"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className={reached ? "font-medium text-emerald-700 dark:text-emerald-400" : "text-stone-500"}>
+        {Math.round(hours * 100) / 100} / {formatHours(target)}
+      </span>
+    </div>
   );
 }
 
@@ -84,8 +123,27 @@ function SlotCard({
         <p className="mt-2">{session.project?.name ?? "No project"}</p>
         {session.goal && <p className="text-stone-500">{session.goal}</p>}
         {session.note && <p className="mt-1 italic">{session.note}</p>}
-        <form action={reopenSession.bind(null, weekStart, slot)} className="mt-3">
+        <form
+          action={logSessionHours.bind(null, weekStart, slot)}
+          className="mt-3 flex items-center gap-2"
+        >
+          <input
+            name="hours"
+            inputMode="decimal"
+            defaultValue={session.hours ?? ""}
+            placeholder="hrs"
+            className={hoursInput}
+            aria-label={`Session ${slot} hours`}
+          />
+          <span className="text-xs text-stone-500">hrs</span>
           <button type="submit" className={smallButton}>
+            Save
+          </button>
+          <button
+            type="submit"
+            formAction={reopenSession.bind(null, weekStart, slot)}
+            className="ml-auto text-xs text-stone-500 hover:underline"
+          >
             Reopen
           </button>
         </form>
@@ -144,6 +202,14 @@ function SlotCard({
             aria-label={`Session ${slot} note`}
           />
           <div className="flex items-center gap-2">
+            <input
+              name="hours"
+              inputMode="decimal"
+              defaultValue={session?.hours ?? ""}
+              placeholder="hrs"
+              className={hoursInput}
+              aria-label={`Session ${slot} hours`}
+            />
             <button
               type="submit"
               className="rounded bg-emerald-700 px-2 py-0.5 text-xs font-medium text-white hover:bg-emerald-600"

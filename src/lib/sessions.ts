@@ -7,6 +7,10 @@ import { getProject, updateProject } from "./projects";
 
 export const SLOTS = [1, 2, 3] as const;
 
+/** Weekly hours target (from the plan: ~4 hrs x 3 sessions). */
+export const WEEKLY_HOURS_TARGET =
+  Number(process.env.DASHBOARD_WEEKLY_HOURS) || 12;
+
 export type WorkSession = {
   id: string;
   week_start: string; // the Monday, YYYY-MM-DD
@@ -15,6 +19,7 @@ export type WorkSession = {
   goal: string;
   done_on: string | null; // YYYY-MM-DD
   note: string;
+  hours: number | null; // time spent; only counted once done
   created_at: string;
   updated_at: string;
   project: { name: string } | null; // joined from projects
@@ -71,6 +76,7 @@ export async function completeSession(
   slot: number,
   doneOn: string,
   note?: string,
+  hours?: number | null,
 ): Promise<WorkSession> {
   checkSlot(weekStart, slot);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(doneOn)) {
@@ -82,6 +88,7 @@ export async function completeSession(
     done_on: doneOn,
   };
   if (note !== undefined) row.note = note.trim();
+  if (hours !== undefined) row.hours = checkHours(hours);
   const session = await upsert(row);
 
   if (session.project_id) {
@@ -91,6 +98,64 @@ export async function completeSession(
     }
   }
   return session;
+}
+
+/** Sets (or with null, clears) the hours logged for a slot. */
+export function logHours(weekStart: string, slot: number, hours: number | null) {
+  checkSlot(weekStart, slot);
+  return upsert({ week_start: weekStart, slot, hours: checkHours(hours) });
+}
+
+/** Hours from done sessions, summed. */
+export function totalHours(sessions: (WorkSession | null)[]): number {
+  return sessions.reduce(
+    (sum, s) => sum + (s?.done_on && s.hours ? Number(s.hours) : 0),
+    0,
+  );
+}
+
+/** All-time hours from done sessions, per project id. */
+export async function hoursByProject(): Promise<Map<string, number>> {
+  await connection();
+  const { data, error } = await db()
+    .from("work_sessions")
+    .select("project_id, hours")
+    .not("done_on", "is", null)
+    .not("project_id", "is", null)
+    .not("hours", "is", null);
+  if (error) throw new Error(`Couldn't load hours: ${error.message}`);
+  const totals = new Map<string, number>();
+  for (const r of data as { project_id: string; hours: number }[]) {
+    totals.set(r.project_id, (totals.get(r.project_id) ?? 0) + Number(r.hours));
+  }
+  return totals;
+}
+
+/**
+ * Reads an hours form field: "" means not given (null), otherwise a number
+ * from 0 to 24 ("3.5", "3,5" and "3h" all work).
+ */
+export function parseHours(raw: unknown): number | null {
+  const text = String(raw ?? "")
+    .trim()
+    .replace(",", ".")
+    .replace(/\s*(h|hrs?|hours?)$/i, "");
+  if (!text) return null;
+  return checkHours(Number(text));
+}
+
+/** "3.5 hrs", "1 hr". */
+export function formatHours(hours: number): string {
+  const n = Math.round(hours * 100) / 100;
+  return `${n} ${n === 1 ? "hr" : "hrs"}`;
+}
+
+function checkHours(hours: number | null): number | null {
+  if (hours === null) return null;
+  if (!Number.isFinite(hours) || hours < 0 || hours > 24) {
+    throw new Error("Hours must be a number from 0 to 24.");
+  }
+  return Math.round(hours * 100) / 100;
 }
 
 /** Un-ticks a slot (the project's last-worked date is left alone). */

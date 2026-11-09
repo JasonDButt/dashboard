@@ -7,7 +7,7 @@ every side project. Single user (me). Built in ~4-hour sessions, 3 days a week;
 the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 (also in the claude.ai project "Dashboard & Side Projects").
 
-## Current status (updated 9 Nov 2026, session 3 complete, v0 done)
+## Current status (updated 9 Nov 2026, time log in progress)
 - **Session 1 is done and live.** Checked by hand on real Supabase data, both
   locally and on the Vercel deploy: login gate, list, add, edit, "Worked today".
 - Hosting: GitHub `JasonDButt/dashboard` (`main`), Vercel auto-deploys every
@@ -32,6 +32,12 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
   locally, then live via the connector; first real `complete_session` logged.
 - **Dashboard v0 is complete** (the plan budgeted 2-3 sessions). Next per the
   plan: pick and spec one SaaS idea; the dashboard's next item is the time log.
+- **Time log (9 Nov, in progress):** hours per session slot, entered with
+  "Done today" and editable on the done card; this week's progress bar vs
+  `DASHBOARD_WEEKLY_HOURS` (default 12), hours on `/weeks`, all-time hours per
+  project card; MCP `complete_session` takes hours, new `log_hours` (16 tools).
+  Only done sessions' hours count. Lint/build pass. Still to do: run
+  `schema.sql`, check by hand, deploy, Disconnect/Connect the connector.
 - When ticking a session done just after midnight, pass `done_on` (and
   `week_of`) explicitly: "today" may already be the next day, or next week.
 - Decision (3 Nov): Claude edits go through our own MCP endpoint, not
@@ -76,7 +82,7 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
   zod 4). Checks `Authorization: Bearer $DASHBOARD_MCP_TOKEN` itself. Tools:
   projects (list_projects, list_archived_projects, get_project, add_project,
   update_project, mark_worked_today, archive_project, restore_project), week
-  (get_week, plan_session, complete_session), ideas (list_ideas, add_idea,
+  (get_week, plan_session, complete_session, log_hours), ideas (list_ideas, add_idea,
   update_idea, promote_idea).
   **No delete tools, on purpose:** deleting is for the human, on the web pages.
   When the app gains a feature Claude should use, add a tool.
@@ -113,7 +119,8 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 `updated_at`. Archived = `archived_at` is set: off the main list, on `/archive`,
 status kept for when it's restored.
 `work_sessions`: `week_start` (Monday), `slot` (1-3), `project_id` (null if the
-project is deleted), `goal`, `done_on`, `note`; unique per (week_start, slot),
+project is deleted), `goal`, `done_on`, `note`, `hours` (0-24, counted once
+done); unique per (week_start, slot),
 row created when a slot is first used. `ideas`: `title`, `notes`.
 RLS is enabled with no policies on every table, so only the secret key can
 touch them.
@@ -124,4 +131,4 @@ longer auto-grants), or the app gets "permission denied for table".
 - [x] Session 1: list / add / edit projects, login gate, deploy (live 27 Oct 2026)
 - [x] Session 2: MCP endpoint so Claude can add/edit projects (live 5 Nov 2026)
 - [x] Session 3: weekly view (3 session slots/week) + idea backlog (live 8 Nov 2026)
-- [ ] Later: time log against the 12 hrs/week target
+- [ ] Session 4: time log against the 12 hrs/week target (built 9 Nov)

@@ -4,6 +4,7 @@ import { listProjects, type Project } from "@/lib/projects";
 import { daysSince, describeLastWorked, todayISO } from "@/lib/dates";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ThisWeek } from "@/components/ThisWeek";
+import { formatHours, hoursByProject } from "@/lib/sessions";
 import { Backlog } from "@/components/Backlog";
 import { markWorkedToday } from "./actions";
 
@@ -45,7 +46,10 @@ export default function HomePage() {
 }
 
 async function ProjectList() {
-  const projects = await listProjects();
+  const [projects, hours] = await Promise.all([
+    listProjects(),
+    hoursByProject(),
+  ]);
   const today = todayISO();
 
   if (projects.length === 0) {
@@ -63,13 +67,26 @@ async function ProjectList() {
   return (
     <ul className="space-y-3">
       {projects.map((p) => (
-        <ProjectCard key={p.id} project={p} today={today} />
+        <ProjectCard
+          key={p.id}
+          project={p}
+          today={today}
+          hours={hours.get(p.id) ?? 0}
+        />
       ))}
     </ul>
   );
 }
 
-function ProjectCard({ project: p, today }: { project: Project; today: string }) {
+function ProjectCard({
+  project: p,
+  today,
+  hours,
+}: {
+  project: Project;
+  today: string;
+  hours: number; // all-time, from done sessions
+}) {
   const days = daysSince(p.last_worked_on, today);
   const stale =
     p.status === "active" && (days === null || days > STALE_AFTER_DAYS);
@@ -86,6 +103,11 @@ function ProjectCard({ project: p, today }: { project: Project; today: string })
             {p.name}
           </Link>
           <StatusBadge status={p.status} />
+          {hours > 0 && (
+            <span className="text-xs text-stone-500" title="Hours logged, all time">
+              {formatHours(hours)}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3 text-sm">
           <span

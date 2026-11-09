@@ -64,6 +64,10 @@ create table if not exists public.work_sessions (
   unique (week_start, slot)
 );
 
+-- Time log: hours spent in a session (counted once the session is done).
+alter table public.work_sessions add column if not exists hours numeric(4, 2)
+  check (hours >= 0 and hours <= 24);
+
 -- Idea backlog: somewhere to dump ideas before they become projects.
 create table if not exists public.ideas (
   id          uuid primary key default gen_random_uuid(),

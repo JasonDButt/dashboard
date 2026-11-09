@@ -1,6 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { listAllSessions, type WorkSession } from "@/lib/sessions";
+import {
+  formatHours,
+  listAllSessions,
+  totalHours,
+  WEEKLY_HOURS_TARGET,
+  type WorkSession,
+} from "@/lib/sessions";
 import { shortDate } from "@/lib/dates";
 
 export default function PastWeeksPage() {
@@ -41,7 +47,8 @@ async function WeekList() {
           <h2 className="mb-2 font-medium">
             Week of {shortDate(weekStart)}{" "}
             <span className="text-sm font-normal text-stone-500">
-              ({rows.filter((r) => r.done_on).length}/3 done)
+              ({rows.filter((r) => r.done_on).length}/3 done,{" "}
+              {formatHours(totalHours(rows))} of {WEEKLY_HOURS_TARGET})
             </span>
           </h2>
           <ul className="space-y-1 text-sm">
@@ -54,6 +61,7 @@ async function WeekList() {
                   <span className="text-emerald-700 dark:text-emerald-400">
                     {" "}
                     ✓ {shortDate(s.done_on)}
+                    {s.hours != null && `, ${formatHours(Number(s.hours))}`}
                   </span>
                 ) : (
                   <span className="text-stone-400"> (not done)</span>
