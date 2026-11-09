@@ -7,7 +7,7 @@ every side project. Single user (me). Built in ~4-hour sessions, 3 days a week;
 the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 (also in the claude.ai project "Dashboard & Side Projects").
 
-## Current status (updated 9 Nov 2026, time log in progress)
+## Current status (updated 9 Nov 2026)
 - **Session 1 is done and live.** Checked by hand on real Supabase data, both
   locally and on the Vercel deploy: login gate, list, add, edit, "Worked today".
 - Hosting: GitHub `JasonDButt/dashboard` (`main`), Vercel auto-deploys every
@@ -31,8 +31,8 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
   promote-to-project, and MCP tools for both (15 tools total). Checked by hand
   locally, then live via the connector; first real `complete_session` logged.
 - **Dashboard v0 is complete** (the plan budgeted 2-3 sessions). Next per the
-  plan: pick and spec one SaaS idea; the dashboard's next item is the time log.
-- **Time log (9 Nov, in progress):** hours per session slot, entered with
+  plan: pick and spec one SaaS idea. Time log added since (Session 4).
+- **Session 4 is done and live (9 Nov): time log.** Hours per session slot, entered with
   "Done today" and editable on the done card; this week's progress bar vs
   `DASHBOARD_WEEKLY_HOURS` (default 12), hours on `/weeks`, all-time hours per
   project card; MCP `complete_session` takes hours, new `log_hours` (16 tools).
@@ -42,8 +42,8 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
   the page showed and do nothing if it changed (double clicks); form buttons
   disable while saving (`components/SubmitButton.tsx`). A session with hours
   isn't "empty". Over MCP, a slot number past the end becomes the next new
-  session and the result carries a `notice` for Claude to relay. Lint/build pass. Still to do: run
-  `schema.sql`, check by hand, deploy, Disconnect/Connect the connector.
+  session and the result carries a `notice` for Claude to relay. Checked by hand
+  locally and live; first real `log_hours` call (3 hrs on the 8 Nov session).
 - When ticking a session done just after midnight, pass `done_on` (and
   `week_of`) explicitly: "today" may already be the next day, or next week.
 - Decision (3 Nov): Claude edits go through our own MCP endpoint, not
@@ -138,4 +138,4 @@ longer auto-grants), or the app gets "permission denied for table".
 - [x] Session 1: list / add / edit projects, login gate, deploy (live 27 Oct 2026)
 - [x] Session 2: MCP endpoint so Claude can add/edit projects (live 5 Nov 2026)
 - [x] Session 3: weekly view (3 session slots/week) + idea backlog (live 8 Nov 2026)
-- [ ] Session 4: time log against the 12 hrs/week target (built 9 Nov)
+- [x] Session 4: time log against the 12 hrs/week target, more sessions per week (live 9 Nov 2026)
