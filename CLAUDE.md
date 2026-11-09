@@ -7,7 +7,7 @@ every side project. Single user (me). Built in ~4-hour sessions, 3 days a week;
 the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 (also in the claude.ai project "Dashboard & Side Projects").
 
-## Current status (updated 8 Nov 2026, session 3 in progress)
+## Current status (updated 9 Nov 2026, session 3 complete, v0 done)
 - **Session 1 is done and live.** Checked by hand on real Supabase data, both
   locally and on the Vercel deploy: login gate, list, add, edit, "Worked today".
 - Hosting: GitHub `JasonDButt/dashboard` (`main`), Vercel auto-deploys every
@@ -25,11 +25,15 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
   confirmed on the live site, 5 Nov).
 - Also live (5 Nov): archive (`archived_at`, `/archive` page) replaced the
   `dropped` status; delete is web-only, behind the login.
-- **Session 3 (8 Nov): weekly view + idea backlog.** Built: 3 flexible slots
-  per week on the home page (project + goal + done/note; done also marks the
-  project worked), `/weeks` history, backlog with promote-to-project, and MCP
-  tools for both. Lint/build pass. Still to do: run `schema.sql` in Supabase,
-  check by hand, deploy, Disconnect/Connect the connector for the new tools.
+- **Session 3 is done and live (8 Nov): weekly view + idea backlog.** 3
+  flexible slots per week on the home page (project + goal + done/note; done
+  also marks the project worked), `/weeks` history, backlog with
+  promote-to-project, and MCP tools for both (15 tools total). Checked by hand
+  locally, then live via the connector; first real `complete_session` logged.
+- **Dashboard v0 is complete** (the plan budgeted 2-3 sessions). Next per the
+  plan: pick and spec one SaaS idea; the dashboard's next item is the time log.
+- When ticking a session done just after midnight, pass `done_on` (and
+  `week_of`) explicitly: "today" may already be the next day, or next week.
 - Decision (3 Nov): Claude edits go through our own MCP endpoint, not
   Supabase's MCP server: works from claude.ai chat/phone, can only do what
   the tools allow (no delete), and reuses the web form validation. Auth is a
@@ -119,5 +123,5 @@ longer auto-grants), or the app gets "permission denied for table".
 ## Roadmap
 - [x] Session 1: list / add / edit projects, login gate, deploy (live 27 Oct 2026)
 - [x] Session 2: MCP endpoint so Claude can add/edit projects (live 5 Nov 2026)
-- [ ] Session 3: weekly view (3 session slots/week) + idea backlog
+- [x] Session 3: weekly view (3 session slots/week) + idea backlog (live 8 Nov 2026)
 - [ ] Later: time log against the 12 hrs/week target
