@@ -4,9 +4,10 @@ import { z } from "zod";
 import { safeEqual } from "@/lib/auth";
 import { describeLastWorked, todayISO, weekStartOf } from "@/lib/dates";
 import {
-  SLOTS,
+  MAX_SLOTS,
   WEEKLY_HOURS_TARGET,
   completeSession,
+  fitSlot,
   getWeek,
   hoursByProject,
   logHours,
@@ -52,7 +53,14 @@ const date = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .describe("A date as YYYY-MM-DD.");
-const slot = z.number().int().min(1).max(3).describe("Session slot, 1-3.");
+const slot = z
+  .number()
+  .int()
+  .min(1)
+  .max(MAX_SLOTS)
+  .describe(
+    `Session slot number. Weeks show 3 by default; using the next number after the last one (e.g. 4) adds a session. A number further ahead is saved as the next new session instead, and the result's "notice" says so: tell the user. Max ${MAX_SLOTS}.`,
+  );
 const hours = z.number().min(0).max(24).describe("Hours spent, e.g. 3.5.");
 const weekOf = date
   .optional()
@@ -134,14 +142,14 @@ const mcp = createMcpHandler(
         run(async () => summarise(await setArchived(id, false), todayISO())),
     );
 
-    // --- Weekly view: 3 flexible session slots per week ---
+    // --- Weekly view: flexible session slots (3 by default, more can be added) ---
 
     server.registerTool(
       "get_week",
       {
         title: "Get week",
         description:
-          "Show a week's 3 session slots (project, goal, done date, note, hours) and hours logged against the weekly target. Defaults to this week; pass any date to see the week containing it. Weeks start on Monday.",
+          "Show a week's session slots (3 by default, more if added; project, goal, done date, note, hours) and hours logged against the weekly target. Defaults to this week; pass any date to see the week containing it. Weeks start on Monday.",
         inputSchema: z.object({ week_of: weekOf }),
         annotations: { readOnlyHint: true },
       },
@@ -154,7 +162,7 @@ const mcp = createMcpHandler(
             week_start: weekStart,
             hours_logged: totalHours(slots),
             hours_target: WEEKLY_HOURS_TARGET,
-            slots: SLOTS.map((slot, i) => describeSlot(slot, slots[i])),
+            slots: slots.map((s, i) => describeSlot(i + 1, s)),
           };
         }),
     );
@@ -173,13 +181,16 @@ const mcp = createMcpHandler(
         }),
         annotations: { readOnlyHint: false, destructiveHint: false },
       },
-      ({ slot, project_id, goal, week_of }) =>
-        run(async () =>
-          describeSlot(
+      ({ slot: asked, project_id, goal, week_of }) =>
+        run(async () => {
+          const weekStart = resolveWeek(week_of);
+          const slot = await fitSlot(weekStart, asked);
+          return withNotice(
+            asked,
             slot,
-            await planSession(resolveWeek(week_of), slot, { project_id, goal }),
-          ),
-        ),
+            await planSession(weekStart, slot, { project_id, goal }),
+          );
+        }),
     );
 
     server.registerTool(
@@ -197,18 +208,15 @@ const mcp = createMcpHandler(
         }),
         annotations: { readOnlyHint: false, destructiveHint: false },
       },
-      ({ slot, note, hours, done_on, week_of }) =>
+      ({ slot: asked, note, hours, done_on, week_of }) =>
         run(async () => {
           const doneOn = done_on ?? todayISO();
-          return describeSlot(
+          const weekStart = resolveWeek(week_of ?? doneOn);
+          const slot = await fitSlot(weekStart, asked);
+          return withNotice(
+            asked,
             slot,
-            await completeSession(
-              resolveWeek(week_of ?? doneOn),
-              slot,
-              doneOn,
-              note,
-              hours,
-            ),
+            await completeSession(weekStart, slot, doneOn, note, hours),
           );
         }),
     );
@@ -230,10 +238,12 @@ const mcp = createMcpHandler(
           idempotentHint: true,
         },
       },
-      ({ slot, hours, week_of }) =>
-        run(async () =>
-          describeSlot(slot, await logHours(resolveWeek(week_of), slot, hours)),
-        ),
+      ({ slot: asked, hours, week_of }) =>
+        run(async () => {
+          const weekStart = resolveWeek(week_of);
+          const slot = await fitSlot(weekStart, asked);
+          return withNotice(asked, slot, await logHours(weekStart, slot, hours));
+        }),
     );
 
     // --- Idea backlog (no delete tool: deleting ideas is web-only too) ---
@@ -426,6 +436,15 @@ function summarise(p: Project, today: string) {
 /** The Monday of the week containing `date` (default: today). */
 function resolveWeek(date?: string) {
   return weekStartOf(date ?? todayISO());
+}
+
+/** describeSlot, plus a note for Claude when the slot number was changed. */
+function withNotice(asked: number, slot: number, s: WorkSession) {
+  if (asked === slot) return describeSlot(slot, s);
+  return {
+    notice: `Session ${asked} would have skipped numbers (the week had ${slot - 1}), so this was saved as Session ${slot}, the next new session. Tell the user.`,
+    ...describeSlot(slot, s),
+  };
 }
 
 /** A slot as Claude sees it, including empty ones. */

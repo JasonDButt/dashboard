@@ -3,20 +3,25 @@ import { connection } from "next/server";
 import { listProjects, type Project } from "@/lib/projects";
 import {
   formatHours,
+  DEFAULT_SLOTS,
   getWeek,
-  SLOTS,
+  isEmpty,
+  MAX_SLOTS,
   totalHours,
   WEEKLY_HOURS_TARGET,
   type WorkSession,
 } from "@/lib/sessions";
 import { shortDate, todayISO, weekStartOf } from "@/lib/dates";
 import {
+  addSession,
   clearSession,
   completeSession,
   logSessionHours,
   planSession,
+  removeSession,
   reopenSession,
 } from "@/app/actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 const hoursInput =
   "w-16 rounded-md border border-stone-300 bg-white px-2 py-1 text-sm dark:border-stone-700 dark:bg-stone-900";
@@ -26,7 +31,7 @@ const input =
 const smallButton =
   "rounded border border-stone-300 px-2 py-0.5 text-xs hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800";
 
-/** This week's 3 session slots. Async: wrap in <Suspense>. */
+/** This week's session slots (3 or more). Async: wrap in <Suspense>. */
 export async function ThisWeek() {
   // "This week" depends on today, so it must be worked out per request, not
   // baked in at build time (Cache Components).
@@ -45,7 +50,7 @@ export async function ThisWeek() {
         <h2 className="text-lg font-semibold tracking-tight">
           This week{" "}
           <span className="text-sm font-normal text-stone-500">
-            (from {shortDate(weekStart)}, {done}/{SLOTS.length} done)
+            (from {shortDate(weekStart)}, {done}/{slots.length} done)
           </span>
         </h2>
         <Link href="/weeks" className="text-sm text-stone-500 hover:underline">
@@ -53,16 +58,30 @@ export async function ThisWeek() {
         </Link>
       </div>
       <HoursBar hours={hours} target={WEEKLY_HOURS_TARGET} />
-      <div className="grid gap-3 sm:grid-cols-3">
-        {SLOTS.map((slot, i) => (
+      {/* One row that scrolls sideways once there are more cards than fit. */}
+      <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
+        {slots.map((session, i) => (
           <SlotCard
-            key={slot}
+            key={i + 1}
             weekStart={weekStart}
-            slot={slot}
-            session={slots[i]}
+            slot={i + 1}
+            session={session}
             projects={projects}
+            shownCount={slots.length}
           />
         ))}
+        {slots.length < MAX_SLOTS && (
+          <form
+            action={addSession.bind(null, weekStart, slots.length)}
+            className="flex shrink-0"
+          >
+            <SubmitButton
+              className="w-28 rounded-lg border border-dashed border-stone-300 text-sm text-stone-500 hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-900"
+            >
+              + Add session
+            </SubmitButton>
+          </form>
+        )}
       </div>
     </section>
   );
@@ -99,14 +118,16 @@ function SlotCard({
   slot,
   session,
   projects,
+  shownCount,
 }: {
   weekStart: string;
   slot: number;
   session: WorkSession | null;
   projects: Project[];
+  shownCount: number; // how many sessions this week shows
 }) {
   const card =
-    "rounded-lg border p-3 text-sm " +
+    "w-64 shrink-0 snap-start rounded-lg border p-3 text-sm " +
     (session?.done_on
       ? "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40"
       : "border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-900");
@@ -136,16 +157,15 @@ function SlotCard({
             aria-label={`Session ${slot} hours`}
           />
           <span className="text-xs text-stone-500">hrs</span>
-          <button type="submit" className={smallButton}>
+          <SubmitButton className={smallButton}>
             Save
-          </button>
-          <button
-            type="submit"
+          </SubmitButton>
+          <SubmitButton
             formAction={reopenSession.bind(null, weekStart, slot)}
             className="ml-auto text-xs text-stone-500 hover:underline"
           >
             Reopen
-          </button>
+          </SubmitButton>
         </form>
       </div>
     );
@@ -157,6 +177,9 @@ function SlotCard({
       ? [{ id: session.project_id, name: session.project?.name ?? "(archived)" }]
       : [];
   const planned = Boolean(session?.project_id || session?.goal);
+  // Hours logged on an unplanned session (e.g. by Claude) also count as in
+  // use: it gets the done/clear form rather than Remove.
+  const inUse = !isEmpty(session);
 
   return (
     <div className={card}>
@@ -185,12 +208,24 @@ function SlotCard({
           className={input}
           aria-label={`Session ${slot} goal`}
         />
-        <button type="submit" className={smallButton}>
-          {planned ? "Update plan" : "Plan"}
-        </button>
+        <div className="flex items-center gap-2">
+          <SubmitButton className={smallButton}>
+            {planned ? "Update plan" : "Plan"}
+          </SubmitButton>
+          {/* An empty session can be taken out (later ones renumber down)
+              while the week has more than the default 3. */}
+          {!inUse && shownCount > DEFAULT_SLOTS && (
+            <SubmitButton
+              formAction={removeSession.bind(null, weekStart, slot, shownCount)}
+              className="text-xs text-stone-500 hover:underline"
+            >
+              Remove
+            </SubmitButton>
+          )}
+        </div>
       </form>
 
-      {planned && (
+      {inUse && (
         <form
           action={completeSession.bind(null, weekStart, slot)}
           className="mt-3 space-y-2 border-t border-stone-200 pt-3 dark:border-stone-800"
@@ -210,19 +245,17 @@ function SlotCard({
               className={hoursInput}
               aria-label={`Session ${slot} hours`}
             />
-            <button
-              type="submit"
+            <SubmitButton
               className="rounded bg-emerald-700 px-2 py-0.5 text-xs font-medium text-white hover:bg-emerald-600"
             >
               Done today
-            </button>
-            <button
-              type="submit"
+            </SubmitButton>
+            <SubmitButton
               formAction={clearSession.bind(null, weekStart, slot)}
               className="text-xs text-stone-500 hover:underline"
             >
               Clear
-            </button>
+            </SubmitButton>
           </div>
         </form>
       )}

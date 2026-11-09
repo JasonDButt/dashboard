@@ -2,10 +2,12 @@ import { connection } from "next/server";
 import { db } from "./supabase";
 import { getProject, updateProject } from "./projects";
 
-// The weekly view: 3 flexible session slots per week (no fixed days). A slot's
-// row is created the first time it's planned or ticked done.
+// The weekly view: flexible session slots per week (no fixed days). Every week
+// shows 3; "Add session" adds more, up to MAX_SLOTS. A slot's row is created
+// the first time it's planned, added or ticked done.
 
-export const SLOTS = [1, 2, 3] as const;
+export const DEFAULT_SLOTS = 3;
+export const MAX_SLOTS = 14; // keep in sync with the check in schema.sql
 
 /** Weekly hours target (from the plan: ~4 hrs x 3 sessions). */
 export const WEEKLY_HOURS_TARGET =
@@ -14,7 +16,7 @@ export const WEEKLY_HOURS_TARGET =
 export type WorkSession = {
   id: string;
   week_start: string; // the Monday, YYYY-MM-DD
-  slot: number; // 1-3
+  slot: number; // 1 to MAX_SLOTS
   project_id: string | null;
   goal: string;
   done_on: string | null; // YYYY-MM-DD
@@ -27,7 +29,10 @@ export type WorkSession = {
 
 const SELECT = "*, project:projects(name)";
 
-/** This week's 3 slots, in order; null where a slot hasn't been used yet. */
+/**
+ * A week's slots in order (index 0 = slot 1): at least DEFAULT_SLOTS, more if
+ * sessions were added. null where a slot hasn't been used yet.
+ */
 export async function getWeek(
   weekStart: string,
 ): Promise<(WorkSession | null)[]> {
@@ -39,7 +44,89 @@ export async function getWeek(
     .eq("week_start", weekStart);
   if (error) throw new Error(`Couldn't load the week: ${error.message}`);
   const rows = data as WorkSession[];
-  return SLOTS.map((slot) => rows.find((r) => r.slot === slot) ?? null);
+  const count = Math.max(DEFAULT_SLOTS, ...rows.map((r) => r.slot));
+  return Array.from(
+    { length: count },
+    (_, i) => rows.find((r) => r.slot === i + 1) ?? null,
+  );
+}
+
+/**
+ * Adds an empty session slot after the week's last one; returns its number.
+ * With `expectedCount` (how many sessions the page showed), does nothing and
+ * returns null if the week has changed since, e.g. on a double click.
+ */
+export async function addSession(
+  weekStart: string,
+  expectedCount?: number,
+): Promise<number | null> {
+  const count = (await getWeek(weekStart)).length;
+  if (expectedCount !== undefined && count !== expectedCount) return null;
+  const slot = count + 1;
+  if (slot > MAX_SLOTS) {
+    throw new Error(`A week can have at most ${MAX_SLOTS} sessions.`);
+  }
+  await upsert({ week_start: weekStart, slot });
+  return slot;
+}
+
+/**
+ * Takes an empty session out of the week and moves every later one down a
+ * number (remove 5 of 6: old 6 becomes 5). Only when the week has more than
+ * DEFAULT_SLOTS, so the first 3 always remain. With `expectedCount` (how many
+ * sessions the page showed), does nothing if the week has changed since: on a
+ * double click, the second click would otherwise remove the next session too.
+ */
+export async function removeSession(
+  weekStart: string,
+  slot: number,
+  expectedCount?: number,
+) {
+  checkSlot(weekStart, slot);
+  const week = await getWeek(weekStart);
+  if (expectedCount !== undefined && week.length !== expectedCount) return;
+  if (week.length <= DEFAULT_SLOTS) {
+    throw new Error(`A week always keeps ${DEFAULT_SLOTS} sessions.`);
+  }
+  const session = week[slot - 1];
+  if (session && !isEmpty(session)) {
+    throw new Error("Clear the session before removing it.");
+  }
+
+  await clearSession(weekStart, slot);
+  // Shift later sessions down one at a time, lowest first, so each move goes
+  // into a number that's already free (slot numbers are unique per week).
+  for (const later of week.slice(slot)) {
+    if (!later) continue;
+    const { error } = await db()
+      .from("work_sessions")
+      .update({ slot: later.slot - 1 })
+      .eq("id", later.id);
+    if (error) throw new Error(`Couldn't renumber sessions: ${error.message}`);
+  }
+}
+
+/** Nothing planned, done or logged (hours count, even before it's done). */
+export function isEmpty(session: WorkSession | null): boolean {
+  return (
+    !session ||
+    (!session.project_id && !session.goal && !session.done_on && session.hours == null)
+  );
+}
+
+/**
+ * For Claude: a slot number past the end of the week (which would leave empty
+ * sessions in between) becomes the next new session instead.
+ */
+export async function fitSlot(weekStart: string, slot: number): Promise<number> {
+  checkSlot(weekStart, slot);
+  const next = (await getWeek(weekStart)).length + 1;
+  return Math.min(slot, next);
+}
+
+/** Number of slots a week shows, given its rows (e.g. for /weeks). */
+export function slotCount(rows: WorkSession[]): number {
+  return Math.max(DEFAULT_SLOTS, ...rows.map((r) => r.slot));
 }
 
 /** Every session ever planned, newest week first. */
@@ -189,7 +276,7 @@ function checkSlot(weekStart: string, slot: number) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
     throw new Error("Week must be a date (YYYY-MM-DD).");
   }
-  if (!SLOTS.includes(slot as (typeof SLOTS)[number])) {
-    throw new Error("Slot must be 1, 2 or 3.");
+  if (!Number.isInteger(slot) || slot < 1 || slot > MAX_SLOTS) {
+    throw new Error(`Slot must be from 1 to ${MAX_SLOTS}.`);
   }
 }

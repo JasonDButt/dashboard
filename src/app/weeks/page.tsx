@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   formatHours,
   listAllSessions,
+  slotCount,
   totalHours,
   WEEKLY_HOURS_TARGET,
   type WorkSession,
@@ -47,7 +48,7 @@ async function WeekList() {
           <h2 className="mb-2 font-medium">
             Week of {shortDate(weekStart)}{" "}
             <span className="text-sm font-normal text-stone-500">
-              ({rows.filter((r) => r.done_on).length}/3 done,{" "}
+              ({rows.filter((r) => r.done_on).length}/{slotCount(rows)} done,{" "}
               {formatHours(totalHours(rows))} of {WEEKLY_HOURS_TARGET})
             </span>
           </h2>

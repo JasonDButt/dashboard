@@ -54,7 +54,7 @@ revoke all on public.projects from anon, authenticated;
 create table if not exists public.work_sessions (
   id          uuid primary key default gen_random_uuid(),
   week_start  date not null check (extract(isodow from week_start) = 1),
-  slot        smallint not null check (slot between 1 and 3),
+  slot        smallint not null check (slot between 1 and 14),
   project_id  uuid references public.projects (id) on delete set null,
   goal        text not null default '',
   done_on     date,
@@ -63,6 +63,12 @@ create table if not exists public.work_sessions (
   updated_at  timestamptz not null default now(),
   unique (week_start, slot)
 );
+
+-- 3 sessions show by default, "Add session" adds more: allow up to 14 a week
+-- (MAX_SLOTS in src/lib/sessions.ts).
+alter table public.work_sessions drop constraint if exists work_sessions_slot_check;
+alter table public.work_sessions add constraint work_sessions_slot_check
+  check (slot between 1 and 14);
 
 -- Time log: hours spent in a session (counted once the session is done).
 alter table public.work_sessions add column if not exists hours numeric(4, 2)

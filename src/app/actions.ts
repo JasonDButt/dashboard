@@ -10,11 +10,13 @@ import {
   updateProject,
 } from "@/lib/projects";
 import {
+  addSession as addSlot,
   clearSession as clearSlot,
   completeSession as completeSlot,
   logHours,
   parseHours,
   planSession as planSlot,
+  removeSession as removeSlot,
   reopenSession as reopenSlot,
 } from "@/lib/sessions";
 import {
@@ -98,6 +100,23 @@ export async function logSessionHours(
   form: FormData,
 ) {
   await logHours(weekStart, slot, parseHours(form.get("hours")));
+  refreshWeek();
+}
+
+// shownCount is how many sessions the page showed: if the week has changed
+// since (a double click, another tab), these do nothing and just refresh.
+
+export async function addSession(weekStart: string, shownCount: number) {
+  await addSlot(weekStart, shownCount);
+  refreshWeek();
+}
+
+export async function removeSession(
+  weekStart: string,
+  slot: number,
+  shownCount: number,
+) {
+  await removeSlot(weekStart, slot, shownCount);
   refreshWeek();
 }
 

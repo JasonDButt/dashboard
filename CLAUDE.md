@@ -36,7 +36,13 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
   "Done today" and editable on the done card; this week's progress bar vs
   `DASHBOARD_WEEKLY_HOURS` (default 12), hours on `/weeks`, all-time hours per
   project card; MCP `complete_session` takes hours, new `log_hours` (16 tools).
-  Only done sessions' hours count. Lint/build pass. Still to do: run
+  Only done sessions' hours count. Also: more than 3 sessions a week
+  ("+ Add session", up to 14, cards scroll sideways; extra empty ones have
+  Remove, which renumbers later ones down). Add/Remove send the session count
+  the page showed and do nothing if it changed (double clicks); form buttons
+  disable while saving (`components/SubmitButton.tsx`). A session with hours
+  isn't "empty". Over MCP, a slot number past the end becomes the next new
+  session and the result carries a `notice` for Claude to relay. Lint/build pass. Still to do: run
   `schema.sql`, check by hand, deploy, Disconnect/Connect the connector.
 - When ticking a session done just after midnight, pass `done_on` (and
   `week_of`) explicitly: "today" may already be the next day, or next week.
@@ -118,7 +124,8 @@ the full plan is `C:\claude_projects\misc\dashboard-PROJECT-PLAN.md`
 `stack`, `next_task`, `last_worked_on` (date), `archived_at`, `created_at`,
 `updated_at`. Archived = `archived_at` is set: off the main list, on `/archive`,
 status kept for when it's restored.
-`work_sessions`: `week_start` (Monday), `slot` (1-3), `project_id` (null if the
+`work_sessions`: `week_start` (Monday), `slot` (1-14; 3 shown by default,
+more via "Add session", `MAX_SLOTS` in `src/lib/sessions.ts`), `project_id` (null if the
 project is deleted), `goal`, `done_on`, `note`, `hours` (0-24, counted once
 done); unique per (week_start, slot),
 row created when a slot is first used. `ideas`: `title`, `notes`.
