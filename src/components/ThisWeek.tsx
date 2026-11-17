@@ -62,7 +62,10 @@ export async function ThisWeek() {
       <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
         {slots.map((session, i) => (
           <SlotCard
-            key={i + 1}
+            // Changes on every save, so the card remounts with the saved values.
+            // (React resets a form after its action, and a <select> would go
+            // back to the option it first rendered with, not the saved one.)
+            key={`${i + 1}-${session?.updated_at ?? "empty"}`}
             weekStart={weekStart}
             slot={i + 1}
             session={session}
